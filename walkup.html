@@ -607,3 +607,136 @@
 </script>
 </body>
 </html>
+// 1. LIST YOUR TRACKS HERE PERMANENTLY
+  // The 'url' must match the filename in your 'music' folder
+  let tracks = [
+    { 
+      id: 'player1', 
+      name: 'Matt Martin', 
+      url: 'Kodak Black - ZEZE (feat. Travis Scott & Offset) [Official Audio].mp3', 
+      start: 5, 
+      end: 35, 
+      fade: 2 
+    },
+    { 
+      id: 'player2', 
+      name: 'Jane Smith - Anthem', 
+      url: 'music/heavy-hitter.mp3', 
+      start: 0, 
+      end: 15, 
+      fade: 3 
+    }
+  ];
+
+  let currentAudio = null;
+  let currentId = null;
+  let fadeInterval = null;
+
+  const trackList = document.getElementById('trackList');
+  const countBadge = document.getElementById('countBadge');
+  const tickerScroll = document.getElementById('tickerScroll');
+
+  // Load the tracks as soon as the page opens
+  window.onload = renderTracks;
+
+  function updateTime(id, field, value) {
+    const track = tracks.find(t => t.id === id);
+    if (track) track[field] = parseFloat(value) || 0;
+  }
+
+  function stopAudio() {
+    if (fadeInterval) clearInterval(fadeInterval);
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+    currentId = null;
+    renderTracks();
+  }
+
+  function togglePlay(id) {
+    const track = tracks.find(t => t.id === id);
+    if (currentId === id) {
+      if (currentAudio.paused) {
+        currentAudio.volume = 1;
+        currentAudio.play();
+      } else {
+        currentAudio.pause();
+      }
+      renderTracks();
+      return;
+    }
+
+    if (currentAudio) stopAudio();
+
+    currentAudio = new Audio(track.url);
+    currentId = id;
+    let isFading = false;
+
+    currentAudio.addEventListener('loadedmetadata', () => {
+      if (track.start > 0) currentAudio.currentTime = track.start;
+    });
+
+    currentAudio.addEventListener('timeupdate', () => {
+      const fill = document.getElementById('fill-' + id);
+      if (fill && currentAudio.duration) {
+        fill.style.width = (currentAudio.currentTime / currentAudio.duration * 100) + '%';
+        const effectiveEnd = Math.min(track.end, currentAudio.duration);
+        const remainingTime = effectiveEnd - currentAudio.currentTime;
+
+        if (track.fade > 0 && remainingTime <= track.fade && !isFading && !currentAudio.paused) {
+          isFading = true;
+          fadeAudioOut(currentAudio, track.fade);
+        }
+
+        if (currentAudio.currentTime >= effectiveEnd) stopAudio();
+      }
+    });
+
+    currentAudio.play().catch(e => alert("Click the page first to enable audio playback!"));
+    renderTracks();
+  }
+
+  function fadeAudioOut(audio, duration) {
+    const interval = 50; 
+    const steps = (duration * 1000) / interval;
+    const volStep = audio.volume / steps;
+    fadeInterval = setInterval(() => {
+      if (audio.volume > volStep) {
+        audio.volume -= volStep;
+      } else {
+        audio.volume = 0;
+        clearInterval(fadeInterval);
+        stopAudio();
+      }
+    }, interval);
+  }
+
+  function renderTracks() {
+    countBadge.textContent = tracks.length + ' tracks';
+    trackList.innerHTML = tracks.map(t => `
+      <div class="track-card ${currentId === t.id ? 'playing' : ''}">
+        <button class="play-btn" onclick="togglePlay('${t.id}')">
+          ${(currentId === t.id && !currentAudio.paused) ? '⏸' : '▶'}
+        </button>
+        <div class="track-info">
+          <div class="track-name">${t.name}</div>
+          <div class="track-controls">
+            <div class="time-input-group"><label>Start</label><input type="number" value="${t.start}" onchange="updateTime('${t.id}', 'start', this.value)"></div>
+            <div class="time-input-group"><label>End</label><input type="number" value="${t.end}" onchange="updateTime('${t.id}', 'end', this.value)"></div>
+            <div class="fade-input-group"><label>Fade</label><input type="number" value="${t.fade}" onchange="updateTime('${t.id}', 'fade', this.value)"></div>
+            ${currentId === t.id ? `<button class="stop-btn" onclick="stopAudio()">■</button>` : ''}
+          </div>
+          <div class="progress-bar-wrap" style="${currentId === t.id ? 'display:block' : 'display:none'}">
+            <div class="progress-bar-fill" id="fill-${t.id}"></div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+    updateTicker();
+  }
+
+  function updateTicker() {
+    const text = tracks.map(t => t.name).join(' &nbsp;·&nbsp; ');
+    tickerScroll.innerHTML = `<span>${text} &nbsp;·&nbsp; ${text}</span>`;
+  }
